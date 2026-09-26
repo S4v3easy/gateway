@@ -78,7 +78,6 @@ export const handler: PluginHandler = async (
       verdict = false;
     }
   } catch (e) {
-    console.log(e);
     error = e instanceof Error ? e.message : String(e);
     verdict = true;
     data = null;
