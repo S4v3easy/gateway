@@ -103,7 +103,9 @@ export const getAccessToken = async (
       if (resp) {
         return resp;
       }
-    } catch (err) {}
+    } catch (err) {
+      console.error('Failed to retrieve from cache:', err);
+    }
 
     const scope = 'https://www.googleapis.com/auth/cloud-platform';
     const iat = Math.floor(Date.now() / 1000);
