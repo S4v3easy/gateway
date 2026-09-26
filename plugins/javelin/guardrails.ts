@@ -44,9 +44,6 @@ async function callJavelinGuardrails(
 
   const apiUrl = `https://${domain}/v1/guardrails/apply`;
 
-  console.log('[Javelin] Calling API:', apiUrl);
-  console.log('[Javelin] Application:', credentials.application);
-
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-javelin-apikey': credentials.apiKey,
@@ -62,19 +59,14 @@ async function callJavelinGuardrails(
     metadata: {},
   };
 
-  console.log('[Javelin] Request body:', JSON.stringify(requestBody));
-
   const response = await fetch(apiUrl, {
     method: 'POST',
     headers,
     body: JSON.stringify(requestBody),
   });
 
-  console.log('[Javelin] Response status:', response.status);
-
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[Javelin] API error:', errorText);
     throw new Error(
       `Javelin Guardrails API error: ${response.status} ${response.statusText} - ${errorText}`
     );
@@ -90,13 +82,6 @@ export const handler: PluginHandler = async (
   parameters: PluginParameters,
   eventType: HookEventType
 ) => {
-  console.log('[Javelin] Handler called with eventType:', eventType);
-  console.log(
-    '[Javelin] Full parameters object:',
-    JSON.stringify(parameters, null, 2)
-  );
-  console.log('[Javelin] Parameters keys:', Object.keys(parameters));
-
   let error = null;
   let verdict = true;
   let data = null;
@@ -106,12 +91,8 @@ export const handler: PluginHandler = async (
 
   // If credentials not at root, check if they're nested or direct properties
   if (!credentials || !credentials.apiKey) {
-    console.log('[Javelin] Credentials not found at parameters.credentials');
-    console.log('[Javelin] Trying direct properties...');
-
     // Check if credentials are passed as direct properties
     if (parameters.apiKey) {
-      console.log('[Javelin] Found credentials as direct properties');
       credentials = {
         apiKey: parameters.apiKey as string,
         domain: parameters.domain as string | undefined,
@@ -120,17 +101,7 @@ export const handler: PluginHandler = async (
     }
   }
 
-  console.log('[Javelin] Final credentials check:', {
-    hasApiKey: !!credentials?.apiKey,
-    hasDomain: !!credentials?.domain,
-    hasApplication: !!credentials?.application,
-    apiKeyLength: credentials?.apiKey?.length || 0,
-    domain: credentials?.domain || 'none',
-    application: credentials?.application || 'none',
-  });
-
   if (!credentials?.apiKey) {
-    console.error('[Javelin] Missing API key after all checks');
     return {
       error: `'parameters.credentials.apiKey' must be set. Received parameters keys: ${Object.keys(parameters).join(', ')}`,
       verdict: true,
@@ -139,7 +110,6 @@ export const handler: PluginHandler = async (
   }
 
   if (!credentials?.application) {
-    console.error('[Javelin] Missing application name');
     return {
       error: `'parameters.credentials.application' must be set. Received: ${JSON.stringify(credentials)}`,
       verdict: true,
@@ -149,7 +119,6 @@ export const handler: PluginHandler = async (
 
   const { content, textArray } = getCurrentContentPart(context, eventType);
   if (!content) {
-    console.error('[Javelin] No content to check');
     return {
       error: { message: 'request or response json is empty' },
       verdict: true,
@@ -158,16 +127,12 @@ export const handler: PluginHandler = async (
   }
 
   const text = textArray.filter((text) => text).join('\n');
-  console.log('[Javelin] Text to check (length):', text.length);
 
   try {
     const response = await callJavelinGuardrails(text, credentials);
     const assessments = response.assessments || [];
 
-    console.log('[Javelin] Received', assessments.length, 'assessments');
-
     if (assessments.length === 0) {
-      console.warn('[Javelin] No assessments in response');
       return {
         error: { message: 'No assessments in Javelin response' },
         verdict: true,
@@ -190,13 +155,6 @@ export const handler: PluginHandler = async (
       for (const [assessmentType, assessmentData] of Object.entries(
         assessment
       )) {
-        console.log(
-          '[Javelin] Assessment:',
-          assessmentType,
-          'request_reject:',
-          assessmentData.request_reject
-        );
-
         if (assessmentData.request_reject === true) {
           shouldReject = true;
 
@@ -226,8 +184,6 @@ export const handler: PluginHandler = async (
           'Request blocked by Javelin guardrails due to policy violation';
       }
 
-      console.log('[Javelin] Request REJECTED:', rejectPrompt);
-
       // Return with verdict false and NO error field for policy violations
       // Portkey will handle the deny logic based on guardrail actions
       verdict = false;
@@ -238,8 +194,6 @@ export const handler: PluginHandler = async (
         javelin_response: response,
       };
     } else {
-      console.log('[Javelin] Request PASSED all guardrails');
-
       // All guardrails passed
       verdict = true;
       error = null;
@@ -250,9 +204,6 @@ export const handler: PluginHandler = async (
     }
   } catch (e: any) {
     // Handle API errors - still return verdict true so Portkey doesn't block
-    console.error('[Javelin] Error calling API:', e.message);
-    console.error('[Javelin] Error details:', e);
-
     // Create a serializable error object
     error = {
       message: e.message || 'Unknown error calling Javelin API',
@@ -265,12 +216,6 @@ export const handler: PluginHandler = async (
       error_message: e.message,
     };
   }
-
-  console.log('[Javelin] Returning:', {
-    verdict,
-    hasError: !!error,
-    hasData: !!data,
-  });
 
   return { error, verdict, data };
 };
